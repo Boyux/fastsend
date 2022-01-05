@@ -1,0 +1,36 @@
+[package]
+name = "fastsend"
+version = "1.0.0"
+edition = "2021"
+
+authors = ["Hei <xuboyu72@gmail.com>"]
+description = "快速生成适用于分布式环境的 ID 和序列号"
+
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+
+[features]
+# 默认会开启 `pause_on_start` 特性，以期在极大程度上保证生成 ID 或序列号的唯一性（但也只是极大程度上）。
+default = ["pause_on_start"]
+
+# "pause_on_start" 目前应用于两个场合：
+#   1. `BlockFrame::new` 方法，由于 `BlockFrame` 通常用作全局变量，因此将 `pause_on_start` 置于
+#      构建方法中，用于在程序启动时暂停至下一个时间节点（秒）；
+#   2. `TimeSerialer` 的全局 slot，在 `lazy_static` 中初始化时，使用 `Curosr::next` 完成时间停顿，
+#      以到达下一个时间节点（秒）。
+#
+# 以上两处 pause 的目的都在于抵达下一个时间节点，避免与已生成的 ID 或序列号重复。
+# 如果使用 '--no-default-features' 参数去除 `pause_on_start`，则需要使用者自己完成对生成 ID 或序列号
+# 的唯一性校验，一般只在构建命令行（cli）应用时会去掉 pause_on_start 特性。
+pause_on_start = []
+
+[dependencies]
+crossbeam = "0.8"
+lazy_static = "1"
+chrono = "0.4"
+futures-locks = "0.7"
+futures = "0.3"
+rand = "0.8"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
