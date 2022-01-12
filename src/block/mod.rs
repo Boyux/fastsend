@@ -94,7 +94,23 @@ impl<T: ConstructBlock> BlockFrame<T> {
                         // 通过 CAS 操作将旧 `Cursor` 置换为 `next`，确保 `next` 游标一定滞后于 `prev`，
                         loop {
                             prev = cursor.load();
-                            next = prev.next();
+
+                            // HACK:
+                            // 此处是一个针对 'cfg(not(feature = "pause_on_start"))' 的一个 HACK，目的
+                            // 是提高程序启动加载的速度（常用于命令行应用），'pause_on_start' 特性在被禁用的
+                            // 情况下，会在程序启动的过程中针对性地停用 `Cursor::next` 方法的调用，但在这里却
+                            // 不能*简单粗暴*地禁用 `next` 方法的执行（不然会造成元素生成冲突）。
+                            //
+                            // 因此使用了一个折衷但却并不安全的方法来达到预期提高启动速度的目的：调用 unsafe 的
+                            // `Cursor::incr` 方法对计数进行累加，可以避免在等待时间流逝过程中的阻塞时间，同时
+                            // 也能确保生成的元素具有唯一性，但其不安全点在于，如果一个程序过快地重复执行（或重启）
+                            // 生成地元素有较小概率会重复，这就需要使用者（调用方）自己做判重处理。
+                            next = if cfg!(feature = "pause_on_start") {
+                                prev.next()
+                            } else {
+                                unsafe { prev.incr() }
+                            };
+
                             if cursor.compare_exchange(prev, next).is_ok() {
                                 break;
                             }
@@ -293,6 +309,15 @@ impl Cursor {
             // 比 `spin` 自旋更好的选择。
             backoff.snooze();
         }
+    }
+
+    /// `incr` 是 `next` 方法的不安全版方法，`next` 方法是通过时间的自然流逝来增加 Cursor 计数，确保了其单调递
+    /// 增的特性，而 `incr` 是非常简单粗暴地对内部计数器进行 +1 增长，这在程序运行长周期的视角下看是没有问题的，但
+    /// 当程序涉及重启时就会有显著的冲突问题出现，例如程序在同一时间节点内进行重启，使用 `incr` 方法则无法保证重启
+    /// 前和重启后生成的元素是互相独立的（即有可能发生冲突）。`incr` 的使用更多的是在 'pause_on_start' 特性被禁
+    /// 用的场合，充当一个快速计数增长的工具。
+    pub unsafe fn incr(self) -> Self {
+        Self(self.0 + 1)
     }
 }
 
