@@ -1,6 +1,6 @@
 [package]
 name = "fastsend"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2021"
 
 authors = ["Hei <xuboyu72@gmail.com>"]
@@ -25,12 +25,12 @@ default = ["pause_on_start"]
 pause_on_start = []
 
 [dependencies]
-crossbeam = "0.8"
-lazy_static = "1"
-chrono = "0.4"
-futures-locks = "0.7"
-futures = "0.3"
-rand = "0.8"
+crossbeam = "0.8.1"
+lazy_static = "1.4.0"
+chrono = "0.4.19"
+futures-locks = "0.7.0"
+futures = "0.3.19"
+rand = "0.8.4"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.15.0", features = ["full"] }
