@@ -6,6 +6,7 @@ use futures_locks::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use lazy_static::lazy_static;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
+use std::convert::Infallible;
 use std::fmt::{Display, Write};
 use std::future::Future;
 use std::hash::{Hash, Hasher};
@@ -34,14 +35,23 @@ pub trait Serialer {
     /// trait 转化为 `String` 类型。
     type Output: Display;
 
+    /// `Error` 是序列号构建过程中，当构建失败时返回的错误类型，类似于 `serde` 中的序列化错误，如果
+    /// 序列号构建过程不会返回失败，建议使用 `Infallible` 类型作为错误类型。
+    type Error;
+
     /// `build` 方法类似于 `Hasher::finish` 方法，消耗自身构建出序列号，值得注意的是，在许多场景下，
     /// 构建序列号的方式会依赖外部系统，因此在设计 `build` 的 API 时，考虑到调用外部系统往往需要使用
     /// `Future` 来支持异步任务，在返回值的设计上选择了 `Pin<Box<dyn Future>>` 来提供对 async/await
     /// 的支持（这也是在当前 Rust 版本下，语法层面不支持 `async-trait` 的一种妥协方案）。
     ///
+    /// 由于异步系统的外部依赖性，通常而言并不能百分百保证序列号构建的正确性，即错误是无法避免的，因此返回
+    /// 结果应是一个 `Result` 类型，用于处理序列号构建失败的情况。
+    ///
     /// 需要额外注意的是，返回的 `Future` 需要满足 `Send` + `'static` 的约束，这是为了适配多数异步
     /// `Runtime` 中多线程异步任务执行器对 `Future` 的约束。
-    fn build(self) -> Pin<Box<dyn Future<Output = Self::Output> + Send + 'static>>;
+    fn build(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send + 'static>>;
 
     /// `feed` 用于向 `Serialer` 提供用于生成序列号的必要信息，类似于 `Hasher` trait 中的 `write` 方法。
     fn feed(&mut self, data: &[u8]);
@@ -77,7 +87,11 @@ impl Default for TimeSerialer {
 impl Serialer for TimeSerialer {
     type Output = String;
 
-    fn build(self) -> Pin<Box<dyn Future<Output = Self::Output> + Send + 'static>> {
+    type Error = Infallible;
+
+    fn build(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send + 'static>> {
         lazy_static! {
             /// 全局 `SLOT` 容器，用于存储在一定时间段内生成的序列号，用于判断是否重复。
             static ref SLOT: RwLock<HashMap<String, i64>> = {
@@ -220,7 +234,7 @@ impl Serialer for TimeSerialer {
                     }
                 }
 
-                return serial;
+                return Ok(serial);
             }
         })
     }
