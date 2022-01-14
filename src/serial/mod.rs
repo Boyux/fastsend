@@ -55,6 +55,20 @@ pub trait Serialer {
 
     /// `feed` 用于向 `Serialer` 提供用于生成序列号的必要信息，类似于 `Hasher` trait 中的 `write` 方法。
     fn feed(&mut self, data: &[u8]);
+
+    /// `oneshot` 用于直接根据提供的数据 `data` 构建序列号，是 'feed+build' 的快捷方式，省去了需要先调用
+    /// `feed` 再调用 `build` 的麻烦，能更好地进行链式调用（当你已有一个 'Serialer' 实例时，可以直接调用
+    /// `serialer.oneshot.await` 完成序列号构建）。
+    fn oneshot<S: Serial>(
+        mut self,
+        data: S,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send + 'static>>
+    where
+        Self: Sized,
+    {
+        data.serial(&mut self);
+        self.build()
+    }
 }
 
 /// `TimeSerialer` 是基于时间的序列号生成器，该序列号由纯数字组成，其特点在于可以从序列号一眼看出生成的 时间节
