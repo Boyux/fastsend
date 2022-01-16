@@ -13,6 +13,9 @@ pub use token::Token;
 pub mod serial;
 pub use serial::{Serial, Serialer, TimeSerialer};
 
+#[cfg(feature = "ticket")]
+pub use serial::{ticket::TicketSerialError, ticket::TicketSerialer};
+
 /// `ID` 是 fastsend 的核心 trait，用于生成不重复的 id，其表示形式为 64 位无符号整数，可用作数据库的主键。
 /// 其生成方法会消耗自身所有权，目的是确保一个 `ID` 实例只生成一个 id，多次生成在某些特定场景下会造成 id 冲突
 /// 的情况，例如因为代码逻辑错误导致多次调用 `id` 方法（但实际上如果 `ID` 是 Copy 的，这种情况也很难避免）。

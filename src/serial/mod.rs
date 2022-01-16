@@ -257,3 +257,6 @@ impl Serialer for TimeSerialer {
         self.0.extend_from_slice(data);
     }
 }
+
+#[cfg(feature = "ticket")]
+pub mod ticket;
