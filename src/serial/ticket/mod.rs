@@ -252,7 +252,7 @@ where
                 let mut output: String = if !self.short_repr {
                     [&*head, &*left, &*right, &*tail, &*auth].join(sep)
                 } else {
-                    [&*head, &*left, &*tail].join(sep)
+                    [&*head, &*left, &*right].join(sep)
                 };
 
                 if self.lowercase {
