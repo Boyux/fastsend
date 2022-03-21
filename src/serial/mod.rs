@@ -137,9 +137,12 @@ impl Serialer for TimeSerialer {
                         .expect("error writing datetime into string buffer");
 
                     // 序列号的中间 3 位，由设备 ID 决定，设备 ID 源于环境变量 `FASTSEND_DEVICE_ID`，如果未提供
-                    // 环境变量，则使用默认值 '000'。
+                    // 环境变量，则使用随机生成的 u8 整数（8-bit）值（在单设备环境下，可以更好地减少序列号碰撞）。
                     buffer
-                        .write_fmt(format_args!("{:03}", crate::DEVICE_ID.unwrap_or_default()))
+                        .write_fmt(format_args!(
+                            "{:03}",
+                            crate::DEVICE_ID.unwrap_or_else(rand::random)
+                        ))
                         .expect("error writing first byte(u8) into string buffer");
 
                     // 序列号的后 5 位，由 `feed` 带来的字节序列经过哈希后对 10000 取模生成，为保证序列号尽可能短，
