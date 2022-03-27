@@ -87,4 +87,5 @@ fastsend 需要配置两个环境变量，分别是 `FASTSEND_RANDOM_VALUE` 和 
 # TODO
 
 - [ ] 实现更多 `Serialer`
-  - [x] `TicketSerialer`
+  - [X] `TicketSerialer`
+  - [X] `UUIDSerialer`

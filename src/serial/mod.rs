@@ -263,3 +263,6 @@ impl Serialer for TimeSerialer {
 
 #[cfg(feature = "ticket")]
 pub mod ticket;
+
+#[cfg(feature = "uuid")]
+pub mod uuid;
