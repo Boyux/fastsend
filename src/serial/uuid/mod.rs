@@ -1,13 +1,12 @@
 use crate::Serialer;
-use itertools::Itertools;
-use md5::Digest;
-use rand::{distributions::Standard, prelude::*};
+use rand::prelude::*;
 use rand_chacha::{rand_core::block::BlockRng, ChaCha20Core};
 use sha1::{Digest as Sha1Digest, Sha1};
 use std::cell::RefCell;
-use std::convert::Infallible;
+use std::convert::{Infallible, TryInto};
 use std::fmt;
 use std::future::Future;
+use std::ops::Index;
 use std::pin::Pin;
 use std::rc::Rc;
 
@@ -51,40 +50,21 @@ impl UUIDSerialer {
 }
 
 impl Serialer for UUIDSerialer {
-    type Output = String;
+    type Output = UUID;
 
     type Error = Infallible;
 
     fn build(
         self,
     ) -> Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send + 'static>> {
-        #[inline]
-        fn to_uuid(bytes: impl Iterator<Item = u8>, version: Version) -> String {
-            bytes
-                .take(16)
-                .enumerate()
-                .format_with("", |(index, byte), f| {
-                    if index == 6 {
-                        // UUID 第三部分的第 1 位字符代表版本号，即字节的前 4 位 bit 通过字符形式表示版本，
-                        // 由于是固定值，该字节只保留后四位 bit
-                        f(&format_args!("-{:x}{:x}", version, byte & 0x0f))
-                    } else if index == 8 {
-                        // UUID 第四部分的第一个字节前 2 位 bit，即 '10' 代表变体 1，为固定值，因此需要将
-                        // 该字节前 2 位 bit 置为 '10'，先清除前 2 位 bit 的值，再赋值 '10'
-                        f(&format_args!("-{:02x}", byte & 0x3f | 0x80))
-                    } else if [4, 10].contains(&index) {
-                        f(&format_args!("-{:02x}", byte))
-                    } else {
-                        f(&format_args!("{:02x}", byte))
-                    }
-                })
-                .to_string()
-        }
-
         let uuid = match self.version {
             Version::V3 => {
-                let Digest(a) = md5::compute(self.data);
-                to_uuid(a.iter().copied(), self.version)
+                let digest = md5::compute(self.data);
+
+                UUID {
+                    bytes: digest.0,
+                    version: self.version,
+                }
             }
             Version::V4 => {
                 thread_local! {
@@ -94,13 +74,26 @@ impl Serialer for UUIDSerialer {
                 assert!(self.data.is_empty());
                 let rng = RNG.with(|rng| rng.clone());
                 let mut mut_rng = rng.borrow_mut();
-                let bytes_iter = (&mut *mut_rng).sample_iter(Standard);
-                to_uuid(bytes_iter, self.version)
+
+                UUID {
+                    bytes: mut_rng.gen(),
+                    version: self.version,
+                }
             }
             Version::V5 => {
                 let mut sha = Sha1::new();
                 sha.update(&self.data);
-                to_uuid(sha.finalize().iter().copied(), self.version)
+
+                UUID {
+                    bytes: sha
+                        .finalize()
+                        .as_slice()
+                        // use heading 16 bytes as uuid
+                        .index(0..16)
+                        .try_into()
+                        .unwrap(),
+                    version: self.version,
+                }
             }
         };
 
@@ -115,7 +108,7 @@ impl Serialer for UUIDSerialer {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 enum Version {
     V3 = 3,
     V4 = 4,
@@ -126,4 +119,80 @@ impl fmt::LowerHex for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::LowerHex::fmt(&((*self) as i32), f)
     }
+}
+
+impl fmt::UpperHex for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::UpperHex::fmt(&((*self) as i32), f)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct UUID {
+    bytes: [u8; 16],
+    version: Version,
+}
+
+impl fmt::Display for UUID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        to_uuid(f, self.bytes.into_iter(), self.version, false)
+    }
+}
+
+impl fmt::LowerHex for UUID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        to_uuid(f, self.bytes.into_iter(), self.version, false)
+    }
+}
+
+impl fmt::UpperHex for UUID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        to_uuid(f, self.bytes.into_iter(), self.version, true)
+    }
+}
+
+#[inline]
+fn to_uuid(
+    f: &mut fmt::Formatter<'_>,
+    bytes: impl Iterator<Item = u8>,
+    version: Version,
+    uppercase: bool,
+) -> fmt::Result {
+    bytes
+        .take(16)
+        .enumerate()
+        .map(|(index, byte)| {
+            if index == 6 {
+                // UUID 第三部分的第 1 位字符代表版本号，即字节的前 4 位 bit 通过字符形式表示版本，
+                // 由于是固定值，该字节只保留后四位 bit
+                if uppercase {
+                    write!(f, "-{:01X}{:01X}", version, byte & 0x0f)
+                } else {
+                    write!(f, "-{:01x}{:01x}", version, byte & 0x0f)
+                }
+            } else if index == 8 {
+                // UUID 第四部分的第一个字节前 2 位 bit，即 '10' 代表变体 1，为固定值，因此需要将
+                // 该字节前 2 位 bit 置为 '10'，先清除前 2 位 bit 的值，再赋值 '10'
+                if uppercase {
+                    write!(f, "-{:02X}", byte & 0x3f | 0x80)
+                } else {
+                    write!(f, "-{:02x}", byte & 0x3f | 0x80)
+                }
+            } else if [4, 10].contains(&index) {
+                if uppercase {
+                    write!(f, "-{:02X}", byte)
+                } else {
+                    write!(f, "-{:02x}", byte)
+                }
+            } else {
+                if uppercase {
+                    write!(f, "{:02X}", byte)
+                } else {
+                    write!(f, "{:02x}", byte)
+                }
+            }
+        })
+        .collect::<Result<Vec<()>, fmt::Error>>()?;
+
+    Ok(())
 }

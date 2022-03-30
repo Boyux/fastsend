@@ -1,6 +1,6 @@
 [package]
 name = "fastsend"
-version = "1.1.1"
+version = "1.1.2"
 edition = "2021"
 
 authors = ["Hei <xuboyu72@gmail.com>"]
