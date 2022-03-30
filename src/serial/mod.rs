@@ -266,3 +266,6 @@ pub mod ticket;
 
 #[cfg(feature = "uuid")]
 pub mod uuid;
+
+#[cfg(feature = "auto_increment")]
+pub mod auto_increment;
