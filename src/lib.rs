@@ -17,7 +17,7 @@ pub use serial::{Serial, Serialer, TimeSerialer};
 pub use serial::{ticket::TicketSerialError, ticket::TicketSerialer};
 
 #[cfg(feature = "uuid")]
-pub use serial::uuid::UUIDSerialer;
+pub use serial::uuid::{UUIDSerialer, UUID};
 
 #[cfg(feature = "auto_increment")]
 pub use serial::auto_increment::{AutoIncrement, IncrSerialer, IncrState, IncrStateBuilder};
