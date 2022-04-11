@@ -269,3 +269,6 @@ pub mod uuid;
 
 #[cfg(feature = "auto_increment")]
 pub mod auto_increment;
+
+#[cfg(feature = "random62")]
+pub mod random62;
