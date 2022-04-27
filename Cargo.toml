@@ -1,11 +1,12 @@
 [package]
 name = "fastsend"
-version = "1.2.0"
+version = "1.2.1"
 edition = "2021"
-
 authors = ["Hei <xuboyu72@gmail.com>"]
 description = "快速生成适用于分布式环境的 ID 和序列号"
-
+homepage = "https://github.com/Boyux/fastsend"
+documentation = "https://docs.rs/fastsend"
+repository = "https://github.com/Boyux/fastsend"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 

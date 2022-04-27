@@ -137,6 +137,7 @@ lazy_static! {
 
     /// 用于定位设备的设备号（添加了随机要素 `RV`），从环境变量中获取，在 id 和 serial 生成的场景用来避免多设备
     /// 冲突，使用 `lazy_static` 来确保环境变量在整个程序周期只会被获取一次。
+    #[doc(hidden)]
     pub static ref DEVICE_ID: Option<u8> = env::var("FASTSEND_DEVICE_ID")
         .map(|var| var.parse::<u8>().ok())
         .ok()
