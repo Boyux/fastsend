@@ -1,5 +1,7 @@
+use super::to_string_radix;
 use crate::{Serialer, RV};
 use lazy_static::lazy_static;
+use std::cmp;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{
@@ -34,6 +36,9 @@ pub struct IncrState<AI: AutoIncrement> {
     /// 猜测成本，使序列号单调递增却又不容易看出规律
     suffix: &'static AtomicU8,
 
+    /// 数值序列化时所使用的进制，最高为 36 进制，最低为 2 进制
+    radix: usize,
+
     /// 代表生成序列号时，用于前向填充的 '0' 的数量
     padding: Option<usize>,
 
@@ -64,6 +69,7 @@ impl<AI: AutoIncrement> IncrState<AI> {
                     }
                 }
             },
+            radix: self.radix,
             prefix: self.prefix.as_deref(),
             suffix: {
                 let suffix;
@@ -88,6 +94,7 @@ impl<AI: AutoIncrement> IncrState<AI> {
 
 pub struct IncrSerialer<'a> {
     ident: i64,
+    radix: usize,
     prefix: Option<&'a str>,
     suffix: u8,
     padding: usize,
@@ -102,11 +109,15 @@ impl<'a> Serialer for IncrSerialer<'a> {
         self,
     ) -> Pin<Box<dyn Future<Output = Result<Self::Output, Self::Error>> + Send + 'static>> {
         let output = format!(
-            "{prefix}{ident:0padding$}{suffix:02}",
-            ident = self.ident,
-            padding = self.padding,
+            "{prefix}{ident}{suffix}",
+            ident = to_string_radix(self.ident as usize, self.radix, self.padding, true),
             prefix = self.prefix.unwrap_or_default(),
-            suffix = self.suffix % 100,
+            suffix = to_string_radix(
+                self.suffix as usize % cmp::min(self.radix.pow(2), u8::MAX as usize),
+                self.radix,
+                2,
+                true
+            ),
         );
 
         Box::pin(async move {
@@ -141,6 +152,7 @@ mod static_check {
             engine: Mutex::new(next),
             prefix: None,
             suffix: &COUNTER,
+            radix: 10,
             padding: None,
             last: AtomicI64::new(UNINITIALIZED),
         };
@@ -153,6 +165,7 @@ mod static_check {
 
 pub struct IncrStateBuilder {
     start: Option<i64>,
+    radix: Option<usize>,
     prefix: Option<Box<str>>,
     padding: Option<usize>,
 }
@@ -161,6 +174,7 @@ impl IncrStateBuilder {
     pub fn new() -> IncrStateBuilder {
         IncrStateBuilder {
             start: None,
+            radix: None,
             prefix: None,
             padding: None,
         }
@@ -169,6 +183,12 @@ impl IncrStateBuilder {
     pub fn with_start(mut self, value: i64) -> IncrStateBuilder {
         assert!(value >= 0);
         self.start = Some(value);
+        self
+    }
+
+    pub fn with_radix(mut self, radix: usize) -> IncrStateBuilder {
+        assert!(radix >= 2 && radix <= 36);
+        self.radix = Some(radix);
         self
     }
 
@@ -189,6 +209,7 @@ impl IncrStateBuilder {
             engine: Mutex::new(engine),
             prefix: self.prefix,
             suffix: &COUNTER,
+            radix: self.radix.unwrap_or(10),
             padding: self.padding,
             last: AtomicI64::new(self.start.unwrap_or(UNINITIALIZED)),
         }
