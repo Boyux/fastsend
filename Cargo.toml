@@ -1,6 +1,6 @@
 [package]
 name = "fastsend"
-version = "1.2.1"
+version = "1.2.2"
 edition = "2021"
 authors = ["Hei <xuboyu72@gmail.com>"]
 description = "快速生成适用于分布式环境的 ID 和序列号"
